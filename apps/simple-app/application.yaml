@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-from-manifest
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1" # Порядок синхронизации приложений
+    argocd.argoproj.io/compare-options: IgnoreMissing # Игнорировать отсутствующие ресурсы
+    argocd.argoproj.io/sync-options: ApplyOutOfSyncOnly=true # Применять только те ресурсы, которые не синхронизированы
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:dk0104/Otus_DevOps_Advanced_GitOps_Apps.git
+    path: apps/simple-app/resources 
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app
+  syncPolicy:
+    automated:
+      prune: false # Удаление ресурсов, которые не описаны в git
+      selfHeal: false # Автоматическое исправление состояния
+    syncOptions:
+      - CreateNamespace=true
