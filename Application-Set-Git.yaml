@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: guestbook-appset
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/org/infrastructure-repo.git
+        revision: HEAD
+        directories:
+          - path: apps/*
+  template:
+    metadata:
+      name: '{{path.basename}}'
+      labels:
+        app: '{{path.basename}}'
+        managed-by: appset
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/infrastructure-repo.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+
+
+     apps/
+     ├── frontend/
+     │   ├── Chart.yaml
+     │   ├── values.yaml
+     │   └── templates/
+     ├── backend/
+     │   └── ...
+     └── redis/
+         └── ...

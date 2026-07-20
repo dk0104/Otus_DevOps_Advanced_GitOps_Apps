@@ -1,0 +1,147 @@
+configs:
+  cm:
+    create: true
+    exec.enabled: false
+    server.rbac.log.enforce.enable: false
+    admin.enabled: true
+
+  cmp:
+    create: true
+    plugins:
+      openbao:
+        allowConcurrency: true
+        discover:
+          find:
+            command:
+              - sh
+              - "-c"
+              - "find . -name '*.yaml' |  grep ."
+        generate:
+          command:
+            - argocd-vault-plugin
+            - generate
+            - "."
+        lockRepo: false
+      openbao-helm-kustomize:
+        allowConcurrency: true
+        discover:
+          find:
+            command:
+              - find
+              - "."
+              - -name
+              - kustomization.yaml
+        generate:
+          command:
+            - sh
+            - "-c"
+            - "kustomize build --enable-helm . | argocd-vault-plugin generate -"
+        lockRepo: false
+
+repoServer:
+  envFrom:
+    - secretRef:
+        name: argocd-openbao-env
+
+  volumes:
+    - configMap:
+        name: argocd-cmp-cm
+      name: argocd-cmp-cm
+    - name: cmp-tmp
+      emptyDir: {}
+    - name: custom-tools
+      emptyDir: {}
+
+  initContainers:
+    - name: download-avp
+      image: alpine/curl:latest
+      env:
+        - name: AVP_VERSION
+          value: 1.18.1
+      envFrom:
+        - secretRef:
+            name: argocd-openbao-env
+      command: [sh, -c]
+      args:
+        - >-
+          curl -L https://github.com/argoproj-labs/argocd-vault-plugin/releases/download/v$(AVP_VERSION)/argocd-vault-plugin_$(AVP_VERSION)_linux_amd64 -o argocd-vault-plugin &&
+          chmod +x argocd-vault-plugin &&
+          mv argocd-vault-plugin /custom-tools/
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+
+    - name: download-bao
+      image: alpine/curl:latest
+      env:
+        - name: BAO_VERSION
+          value: 2.2.0
+      envFrom:
+        - secretRef:
+            name: argocd-openbao-env
+      command: [sh, -c]
+      args:
+        - >-
+          curl -L https://github.com/openbao/openbao/releases/download/v$(BAO_VERSION)/bao_$(BAO_VERSION)_linux_amd64.tar.gz -o /tmp/bao.tar.gz &&
+          tar -xzf /tmp/bao.tar.gz -C /tmp &&
+          chmod +x /tmp/bao &&
+          mv /tmp/bao /custom-tools/
+      volumeMounts:
+        - mountPath: /custom-tools
+          name: custom-tools
+
+  extraContainers:
+    - name: openbao
+      command: [/var/run/argocd/argocd-cmp-server]
+      image: quay.io/argoproj/argocd:v3.0.6
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      envFrom:
+        - secretRef:
+            name: argocd-openbao-env
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /tmp
+          name: cmp-tmp
+        # Register plugins into sidecar
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: openbao.yaml
+          name: argocd-cmp-cm
+        # Important: Mount tools into $PATH
+        - name: custom-tools
+          subPath: argocd-vault-plugin
+          mountPath: /usr/local/bin/argocd-vault-plugin
+        - name: custom-tools
+          subPath: bao
+          mountPath: /usr/local/bin/bao
+    - name: openbao-kustomize
+      command: [/var/run/argocd/argocd-cmp-server]
+      image: quay.io/argoproj/argocd:v3.0.6
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+      envFrom:
+        - secretRef:
+            name: argocd-openbao-env
+      volumeMounts:
+        - mountPath: /var/run/argocd
+          name: var-files
+        - mountPath: /home/argocd/cmp-server/plugins
+          name: plugins
+        - mountPath: /tmp
+          name: cmp-tmp
+        # Register plugins into sidecar
+        - mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: openbao-kustomize.yaml
+          name: argocd-cmp-cm
+        # Important: Mount tools into $PATH
+        - name: custom-tools
+          subPath: argocd-vault-plugin
+          mountPath: /usr/local/bin/argocd-vault-plugin
+        - name: custom-tools
+          subPath: bao
+          mountPath: /usr/local/bin/bao
