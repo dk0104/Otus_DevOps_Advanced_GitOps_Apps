@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app-from-kustomize
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: git@github.com:dk0104/Otus_DevOps_Advanced_GitOps_Apps.git
+    path: apps/kustomize-manifest/app
+    targetRevision: main
+    kustomize: {}
+    # plugin:
+    #   name: avp-helm-kustomize
+  destination:
+    server: https://172.18.0.2:6443
+    namespace: app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
