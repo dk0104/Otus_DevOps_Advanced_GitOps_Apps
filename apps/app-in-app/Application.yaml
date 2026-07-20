@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: git@github.com:dk0104/Otus_DevOps_Advanced_GitOps_Apps.git
-    path: applications/app-in-app/app
+    path: apps/app-in-app/app
     targetRevision: main
   destination:
     server: https://kubernetes.default.svc
